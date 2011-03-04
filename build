@@ -1,0 +1,50 @@
+#!/usr/bin/env ruby
+
+require 'fileutils'
+require 'erb'
+require 'yaml'
+
+profile = ARGV[0]
+
+if not profile or not File.exists? "profiles/#{profile}.yml"
+  puts "Usage: ./build [profile]"
+  puts "Existing profiles:"
+  Dir.glob("profiles/*.yml").each {|p|
+    p = p.split("profiles/")[1].split(".")[0]
+    puts " - #{p}"
+  }
+  exit
+else
+  config = YAML.load(File.read("profiles/#{profile}.yml"))
+end
+
+if not File.directory? "openwrt"
+  system "svn co svn://svn.openwrt.org/openwrt/trunk/ openwrt"
+else
+  system "cd openwrt && svn up"
+end
+
+puts "Coyping feeds..."
+FileUtils.cp("feeds.conf", "openwrt/feeds.conf")
+
+puts "Updating feeds..."
+system "openwrt/scripts/feeds update"
+
+puts "Installing feeds..."
+system "openwrt/scripts/feeds install -a"
+
+puts "Copying config..."
+FileUtils.cp("config", "openwrt/.config")
+
+puts "Generating custom wizard..."
+FileUtils.mkdir_p("openwrt/files/etc/init.d/")
+FileUtils.mkdir_p("openwrt/files/etc/rc.d/")
+wizard = ERB.new(File.read("wizard.erb")).result()
+File.open("openwrt/files/etc/init.d/wizard", "w") {|f| f.write(wizard) }
+FileUtils.chmod(0755, "openwrt/files/etc/init.d/wizard")
+FileUtils.ln_sf("/etc/init.d/wizard", "openwrt/files/etc/rc.d/S99wizard")
+
+puts "Starting build..."
+system "cd openwrt && make"
+
+puts "Building the image..."

@@ -1,0 +1,53 @@
+#!/bin/sh /etc/rc.common
+START=99
+
+boot() {
+
+export wifidevice=`uci get wireless.@wifi-iface[0].device`
+
+if [ "$wifidevice" = "wifi0" ]; then export wifiifname="ath0"
+  elif [ "$wifidevice" = "wl0" ]; then export wifiifname="wl0"
+  else export wifiifname="wlan0"
+fi
+
+cp -r /etc/config /etc/config-orig
+
+uci batch << EOF
+set system.@system[0].hostname='auto'
+
+delete network.wifi0
+set network.wifi0='interface'
+set network.wifi0.ifname='$wifiifname'
+set network.wifi0.mtu='1524'
+set network.bat0='interface'
+set network.bat0.ifname='bat0'
+set network.bat0.mtu='1500'
+set network.lan.mtu='1500'
+set network.lan.ifname='eth0 bat0'
+
+set wireless.$wifidevice.diversity='1'
+set wireless.$wifidevice.txpower='15'
+set wireless.$wifidevice.disabled='0'
+set wireless.$wifidevice.channel='<%= config["wifi"]["channel"] %>'
+set wireless.$wifidevice.country='<%= config["wifi"]["country"] %>'
+set wireless.$wifidevice.mcast_rate='<%= config["wifi"]["mcast_rate"] %>'
+
+delete wireless.@wifi-iface[0]
+add wireless wifi-iface
+set wireless.@wifi-iface[0]='wifi-iface'
+set wireless.@wifi-iface[0].network='wifi0'
+set wireless.@wifi-iface[0].sw_merge='1'
+set wireless.@wifi-iface[0].device='$wifidevice'
+set wireless.@wifi-iface[0].bssid='<%= config["wifi"]["bssid"] %>'
+set wireless.@wifi-iface[0].mode='adhoc'
+set wireless.@wifi-iface[0].ssid='<%= config["wifi"]["essid"] %>'
+}
+EOF
+
+uci commit
+
+for service in network firewall; do
+  /etc/init.d/$service restart
+done
+
+/etc/init.d/wizard disable

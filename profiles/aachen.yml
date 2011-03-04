@@ -1,0 +1,6 @@
+wifi:
+  essid: "aachen.freifunk.net"
+  bssid: "02:ca:ff:ee:ba:be"
+  channel: 1
+  country: "DE"
+  mcast_rate: 5500
